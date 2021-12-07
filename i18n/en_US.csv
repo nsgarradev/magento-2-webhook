@@ -118,6 +118,7 @@ Hook,Hook
 "--Please Select--","--Please Select--"
 Basic,Basic
 Digest,Digest
+OAuth2,OAuth2
 Disable,Disable
 Daily,Daily
 Weekly,Weekly

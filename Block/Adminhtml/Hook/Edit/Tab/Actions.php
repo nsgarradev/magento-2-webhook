@@ -180,6 +180,26 @@ class Actions extends Generic implements TabInterface
             'label' => __('Opaque'),
             'title' => __('Opaque'),
         ]);
+        $accessTokenURL = $fieldset->addField('access_token_url', 'text', [
+            'name' => 'access_token_url',
+            'label' => __('Access Token URL'),
+            'title' => __('Access Token URL'),
+        ]);
+        $grantType = $fieldset->addField('grant_type', 'text', [
+            'name' => 'grant_type',
+            'label' => __('Grant Type'),
+            'title' => __('Grant Type'),
+        ]);
+        $clientId = $fieldset->addField('client_id', 'text', [
+            'name' => 'client_id',
+            'label' => __('Client ID'),
+            'title' => __('Client ID'),
+        ]);
+        $clientSecret = $fieldset->addField('client_secret', 'text', [
+            'name' => 'client_secret',
+            'label' => __('Client Secret'),
+            'title' => __('Client Secret'),
+        ]);
         /** @var RendererInterface $rendererBlock */
         $rendererBlock = $this->getLayout()
             ->createBlock(Headers::class);
@@ -208,7 +228,7 @@ class Actions extends Generic implements TabInterface
         ])->setRenderer($rendererBlock);
 
         $refField = $this->fieldFactory->create([
-            'fieldData' => ['value' => 'basic,digest', 'separator' => ','],
+            'fieldData' => ['value' => 'basic,digest,oauth2', 'separator' => ','],
             'fieldPrefix' => ''
         ]);
 
@@ -225,6 +245,10 @@ class Actions extends Generic implements TabInterface
                 ->addFieldMap($nonceCount->getHtmlId(), $nonceCount->getName())
                 ->addFieldMap($clientNonce->getHtmlId(), $clientNonce->getName())
                 ->addFieldMap($opaque->getHtmlId(), $opaque->getName())
+                ->addFieldMap($accessTokenURL->getHtmlId(), $accessTokenURL->getName())
+                ->addFieldMap($grantType->getHtmlId(), $grantType->getName())
+                ->addFieldMap($clientId->getHtmlId(), $clientId->getName())
+                ->addFieldMap($clientSecret->getHtmlId(), $clientSecret->getName())
                 ->addFieldDependence($username->getName(), $authentication->getName(), $refField)
                 ->addFieldDependence($password->getName(), $authentication->getName(), $refField)
                 ->addFieldDependence($realm->getName(), $authentication->getName(), 'digest')
@@ -234,6 +258,10 @@ class Actions extends Generic implements TabInterface
                 ->addFieldDependence($nonceCount->getName(), $authentication->getName(), 'digest')
                 ->addFieldDependence($clientNonce->getName(), $authentication->getName(), 'digest')
                 ->addFieldDependence($opaque->getName(), $authentication->getName(), 'digest')
+                ->addFieldDependence($accessTokenURL->getName(), $authentication->getName(), 'oauth2')
+                ->addFieldDependence($grantType->getName(), $authentication->getName(), 'oauth2')
+                ->addFieldDependence($clientId->getName(), $authentication->getName(), 'oauth2')
+                ->addFieldDependence($clientSecret->getName(), $authentication->getName(), 'oauth2')
         );
 
         $form->addValues($hook->getData());

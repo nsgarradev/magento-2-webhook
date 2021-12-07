@@ -31,6 +31,7 @@ class Authentication extends AbstractSource
 {
     const BASIC = 'basic';
     const DIGEST = 'digest';
+    const OAUTH2 = 'oauth2';
 
     /**
      * Get options in "key-value" format
@@ -43,6 +44,7 @@ class Authentication extends AbstractSource
             '' => __('--Please Select--'),
             self::BASIC => __('Basic'),
             self::DIGEST => __('Digest'),
+            self::OAUTH2 => __('OAuth2'),
         ];
     }
 }

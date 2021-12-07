@@ -26,6 +26,7 @@ use Liquid\Template;
 use Magento\Backend\Model\UrlInterface;
 use Magento\Catalog\Model\Product;
 use Magento\Customer\Api\CustomerRepositoryInterface;
+use Magento\Customer\Api\AddressRepositoryInterface;
 use Magento\Framework\App\Area;
 use Magento\Framework\App\Helper\Context;
 use Magento\Framework\Exception\LocalizedException;
@@ -34,6 +35,7 @@ use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\Adapter\CurlFactory;
 use Magento\Framework\Mail\Template\TransportBuilder;
 use Magento\Framework\ObjectManagerInterface;
+use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
 use Mageplaza\Core\Helper\AbstractData as CoreHelper;
@@ -91,6 +93,11 @@ class Data extends CoreHelper
     protected $customer;
 
     /**
+     * @var AddressRepositoryInterface
+     */
+    protected $address;
+
+    /**
      * Data constructor.
      *
      * @param Context $context
@@ -103,6 +110,8 @@ class Data extends CoreHelper
      * @param HookFactory $hookFactory
      * @param HistoryFactory $historyFactory
      * @param CustomerRepositoryInterface $customer
+     * @param Json $json
+     * @param AddressRepositoryInterface $address
      */
     public function __construct(
         Context $context,
@@ -114,7 +123,9 @@ class Data extends CoreHelper
         LiquidFilters $liquidFilters,
         HookFactory $hookFactory,
         HistoryFactory $historyFactory,
-        CustomerRepositoryInterface $customer
+        CustomerRepositoryInterface $customer,
+        AddressRepositoryInterface $address,
+        Json $json
     ) {
         $this->liquidFilters    = $liquidFilters;
         $this->curlFactory      = $curlFactory;
@@ -123,6 +134,8 @@ class Data extends CoreHelper
         $this->transportBuilder = $transportBuilder;
         $this->backendUrl       = $backendUrl;
         $this->customer         = $customer;
+        $this->json             = $json;
+        $this->address          = $address;
 
         parent::__construct($context, $objectManager, $storeManager);
     }
@@ -243,6 +256,15 @@ class Data extends CoreHelper
                 $hook->getClientNonce(),
                 $hook->getOpaque()
             );
+        } elseif ($authentication === Authentication::OAUTH2) {
+            $authentication = $this->getOAuth2AuthHeader(
+                $hook->getAccessTokenUrl(),
+                $username,
+                $password,
+                $hook->getGrantType(),
+                $hook->getClientId(),
+                $hook->getClientSecret()
+            );
         }
 
         $body        = $log ? $log->getBody() : $this->generateLiquidTemplate($item, $hook->getBody());
@@ -277,6 +299,16 @@ class Data extends CoreHelper
 
             if ($item->getBillingAddress()) {
                 $item->setData('billingAddress', $item->getBillingAddress());
+            }
+
+            if ($item instanceof \Magento\Customer\Model\Backend\Customer\Interceptor) {
+                if ($item->getDefaultShippingAddress()) {
+                    $item->setData('shippingAddress', $item->getDefaultShippingAddress()->getData());
+                }
+
+                if ($item->getDefaultBillingAddress()) {
+                    $item->setData('billingAddress', $item->getDefaultBillingAddress()->getData());
+                }
             }
 
             return $template->render([
@@ -385,6 +417,63 @@ class Data extends CoreHelper
         $digestHeader = "Digest username=\"{$username}\", realm=\"{$realm}\", nonce=\"{$nonce}\", uri=\"{$uri}\", cnonce=\"{$clientNonce}\", nc={$nonceCount}, qop=\"{$qop}\", response=\"{$response}\", opaque=\"{$opaque}\", algorithm=\"{$algorithm}\"";
 
         return $digestHeader;
+    }
+
+    /**
+     * @param $url
+     * @param $username
+     * @param $password
+     * @param $grantType
+     * @param $clientId
+     * @param $clientSecret
+     *
+     * @return string
+     */
+    public function getOAuth2AuthHeader(
+        $url,
+        $username,
+        $password,
+        $grantType,
+        $clientId,
+        $clientSecret
+    ) {
+        $token = '';
+
+        $curl = $this->curlFactory->create();
+
+        $headersConfig = [];
+        $headersConfig[] = 'Content-Type: ' . 'application/x-www-form-urlencoded';
+
+        $postData = "";
+        $postData .= "grant_type=" . $grantType . "&";
+        $postData .= "client_id=" . $clientId . "&";
+        $postData .= "client_secret=" . $clientSecret . "&";
+        $postData .= "username=" . $username . "&";
+        $postData .= "password=" . $password;
+
+        $curl->write('POST', $url, '1.1', $headersConfig, $postData);
+
+        try {
+            $resultCurl = $curl->read();
+
+            if (!empty($resultCurl)) {
+                $status = Zend_Http_Response::extractCode($resultCurl);
+                if (isset($status) && $this->isSuccess($status)) {
+                    $body = Zend_Http_Response::extractBody($resultCurl);
+                    $body = $this->json->unserialize($body);
+                    $token = $body['token_type'] . ' ' . $body['access_token'];
+                } else {
+                    $this->_logger->critical(__('Cannot connect to server. Please try again later.'));
+                }
+            } else {
+                $this->_logger->critical(__('Cannot connect to server. Please try again later.'));
+            }
+        } catch (Exception $e) {
+            $this->_logger->critical($e->getMessage());
+        }
+        $curl->close();
+
+        return $token;
     }
 
     /**
